@@ -85,10 +85,12 @@ class ShareIssueModel:
         )
     
     def get_by_registration_number(self, reg_number: str) -> Optional[Dict]:
-        result = self.db.execute_query(
-            "SELECT * FROM share_issues WHERE registration_number = %s",
-            (reg_number,)
-        )
+        result = self.db.execute_query("""
+            SELECT si.*, c.full_name as company_name
+            FROM share_issues si
+            JOIN joint_stock_companies c ON si.company_id = c.company_id
+            WHERE si.registration_number = %s
+        """, (reg_number,))
         return result[0] if result else None
     
     def get_by_nominal_range(self, min_value: float, max_value: float) -> List[Dict]:

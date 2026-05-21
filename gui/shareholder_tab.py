@@ -10,7 +10,7 @@ class ShareholderTab(QWidget):
     def __init__(self, parent):
         super().__init__(parent)
         self.parent = parent
-        self.shareholder_id = parent.user_data.get('shareholder_id', 1)  # Для демо берем первого акционера
+        self.shareholder_id = parent.user_data.get('shareholder_id', 1)
         self.setup_ui()
         self.load_data()
     
@@ -77,11 +77,11 @@ class ShareholderTab(QWidget):
         search_group.setLayout(search_layout)
         accounts_layout.addWidget(search_group)
         
-        # Таблица счетов
+        # Таблица счетов (без ID)
         self.accounts_table = QTableWidget()
-        self.accounts_table.setColumnCount(6)
+        self.accounts_table.setColumnCount(5)
         self.accounts_table.setHorizontalHeaderLabels(
-            ["ID", "Номер счета", "Дата открытия", "Дата закрытия", "Остаток", "Статус"]
+            ["Номер счета", "Дата открытия", "Дата закрытия", "Остаток", "Статус"]
         )
         self.accounts_table.itemSelectionChanged.connect(self.on_account_selected)
         accounts_layout.addWidget(self.accounts_table)
@@ -90,9 +90,9 @@ class ShareholderTab(QWidget):
         shares_group = QGroupBox("Акции на выбранном счете")
         shares_layout = QVBoxLayout()
         self.shares_table = QTableWidget()
-        self.shares_table.setColumnCount(5)
+        self.shares_table.setColumnCount(4)
         self.shares_table.setHorizontalHeaderLabels(
-            ["Компания", "Рег. номер", "Тип", "Кол-во", "Номинал"]
+            ["Компания", "Рег. номер", "Тип", "Кол-во"]
         )
         shares_layout.addWidget(self.shares_table)
         shares_group.setLayout(shares_layout)
@@ -113,11 +113,11 @@ class ShareholderTab(QWidget):
         select_layout.addWidget(self.account_combo)
         operations_layout.addLayout(select_layout)
         
-        # Таблица операций
+        # Таблица операций (без ID)
         self.operations_table = QTableWidget()
-        self.operations_table.setColumnCount(6)
+        self.operations_table.setColumnCount(5)
         self.operations_table.setHorizontalHeaderLabels(
-            ["Дата", "Тип", "Компания", "Кол-во", "Основание", "Примечание"]
+            ["Дата", "Тип", "Компания", "Кол-во", "Основание"]
         )
         operations_layout.addWidget(self.operations_table)
         
@@ -147,12 +147,14 @@ class ShareholderTab(QWidget):
         accounts = self.parent.account_model.get_by_shareholder(self.shareholder_id)
         self.accounts_table.setRowCount(len(accounts))
         for i, acc in enumerate(accounts):
-            self.accounts_table.setItem(i, 0, QTableWidgetItem(str(acc['account_id'])))
-            self.accounts_table.setItem(i, 1, QTableWidgetItem(acc['account_number']))
-            self.accounts_table.setItem(i, 2, QTableWidgetItem(str(acc['open_date'])))
-            self.accounts_table.setItem(i, 3, QTableWidgetItem(str(acc.get('close_date', '-'))))
-            self.accounts_table.setItem(i, 4, QTableWidgetItem(str(acc['current_balance'])))
-            self.accounts_table.setItem(i, 5, QTableWidgetItem(acc['status']))
+            self.accounts_table.setItem(i, 0, QTableWidgetItem(acc['account_number']))
+            self.accounts_table.setItem(i, 1, QTableWidgetItem(str(acc['open_date'])))
+            self.accounts_table.setItem(i, 2, QTableWidgetItem(str(acc.get('close_date', '-'))))
+            self.accounts_table.setItem(i, 3, QTableWidgetItem(str(acc['current_balance'])))
+            self.accounts_table.setItem(i, 4, QTableWidgetItem(acc['status']))
+            
+            # Сохраняем ID для внутреннего использования
+            self.accounts_table.item(i, 0).setData(Qt.ItemDataRole.UserRole, acc['account_id'])
         
         # Обновляем комбобокс для операций
         self.account_combo.clear()
@@ -161,10 +163,15 @@ class ShareholderTab(QWidget):
         
         self.accounts_table.resizeColumnsToContents()
     
+    def get_selected_account_id(self):
+        current_row = self.accounts_table.currentRow()
+        if current_row >= 0:
+            return self.accounts_table.item(current_row, 0).data(Qt.ItemDataRole.UserRole)
+        return None
+    
     def on_account_selected(self):
-        selected = self.accounts_table.currentRow()
-        if selected >= 0:
-            account_id = int(self.accounts_table.item(selected, 0).text())
+        account_id = self.get_selected_account_id()
+        if account_id:
             shares = self.parent.account_model.get_shares_on_account(account_id)
             
             self.shares_table.setRowCount(len(shares))
@@ -173,7 +180,6 @@ class ShareholderTab(QWidget):
                 self.shares_table.setItem(i, 1, QTableWidgetItem(share['registration_number']))
                 self.shares_table.setItem(i, 2, QTableWidgetItem(share['share_type']))
                 self.shares_table.setItem(i, 3, QTableWidgetItem(str(share['quantity'])))
-                self.shares_table.setItem(i, 4, QTableWidgetItem(f"{share['nominal_value']:,.2f}"))
             
             self.shares_table.resizeColumnsToContents()
     
@@ -186,12 +192,12 @@ class ShareholderTab(QWidget):
                 account = self.parent.account_model.get_by_number(account_number)
                 if account and account['shareholder_id'] == self.shareholder_id:
                     self.accounts_table.setRowCount(1)
-                    self.accounts_table.setItem(0, 0, QTableWidgetItem(str(account['account_id'])))
-                    self.accounts_table.setItem(0, 1, QTableWidgetItem(account['account_number']))
-                    self.accounts_table.setItem(0, 2, QTableWidgetItem(str(account['open_date'])))
-                    self.accounts_table.setItem(0, 3, QTableWidgetItem(str(account.get('close_date', '-'))))
-                    self.accounts_table.setItem(0, 4, QTableWidgetItem(str(account['current_balance'])))
-                    self.accounts_table.setItem(0, 5, QTableWidgetItem(account['status']))
+                    self.accounts_table.setItem(0, 0, QTableWidgetItem(account['account_number']))
+                    self.accounts_table.setItem(0, 1, QTableWidgetItem(str(account['open_date'])))
+                    self.accounts_table.setItem(0, 2, QTableWidgetItem(str(account.get('close_date', '-'))))
+                    self.accounts_table.setItem(0, 3, QTableWidgetItem(str(account['current_balance'])))
+                    self.accounts_table.setItem(0, 4, QTableWidgetItem(account['status']))
+                    self.accounts_table.item(0, 0).setData(Qt.ItemDataRole.UserRole, account['account_id'])
                 else:
                     self.accounts_table.setRowCount(0)
                     QMessageBox.information(self, "Результат", "Счет не найден")
@@ -203,12 +209,12 @@ class ShareholderTab(QWidget):
             
             self.accounts_table.setRowCount(len(accounts))
             for i, acc in enumerate(accounts):
-                self.accounts_table.setItem(i, 0, QTableWidgetItem(str(acc['account_id'])))
-                self.accounts_table.setItem(i, 1, QTableWidgetItem(acc['account_number']))
-                self.accounts_table.setItem(i, 2, QTableWidgetItem(str(acc['open_date'])))
-                self.accounts_table.setItem(i, 3, QTableWidgetItem(str(acc.get('close_date', '-'))))
-                self.accounts_table.setItem(i, 4, QTableWidgetItem(str(acc['current_balance'])))
-                self.accounts_table.setItem(i, 5, QTableWidgetItem(acc['status']))
+                self.accounts_table.setItem(i, 0, QTableWidgetItem(acc['account_number']))
+                self.accounts_table.setItem(i, 1, QTableWidgetItem(str(acc['open_date'])))
+                self.accounts_table.setItem(i, 2, QTableWidgetItem(str(acc.get('close_date', '-'))))
+                self.accounts_table.setItem(i, 3, QTableWidgetItem(str(acc['current_balance'])))
+                self.accounts_table.setItem(i, 4, QTableWidgetItem(acc['status']))
+                self.accounts_table.item(i, 0).setData(Qt.ItemDataRole.UserRole, acc['account_id'])
     
     def clear_accounts_search(self):
         self.account_number_input.clear()
@@ -226,13 +232,6 @@ class ShareholderTab(QWidget):
                 self.operations_table.setItem(i, 2, QTableWidgetItem(op['company_name']))
                 self.operations_table.setItem(i, 3, QTableWidgetItem(str(op['quantity'])))
                 self.operations_table.setItem(i, 4, QTableWidgetItem(op.get('basis_document', '-')))
-                
-                note = ""
-                if op.get('from_account_id'):
-                    note = f"Со счета: {op['from_account_id']}"
-                if op.get('to_account_id'):
-                    note = f"На счет: {op['to_account_id']}"
-                self.operations_table.setItem(i, 5, QTableWidgetItem(note or '-'))
             
             self.operations_table.resizeColumnsToContents()
     

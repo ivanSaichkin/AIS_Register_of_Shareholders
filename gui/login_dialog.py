@@ -14,7 +14,7 @@ class LoginDialog(QDialog):
     
     def setup_ui(self):
         self.setWindowTitle("Авторизация")
-        self.setFixedSize(400, 200)
+        self.setFixedSize(450, 250)
         self.setModal(True)
         
         layout = QVBoxLayout()
@@ -34,11 +34,12 @@ class LoginDialog(QDialog):
         role_layout.addWidget(self.role_combo)
         layout.addLayout(role_layout)
         
-        # Выбор пользователя (для акционера - выбор по ФИО)
+        # Выбор пользователя
         user_layout = QHBoxLayout()
         user_layout.addWidget(QLabel("Пользователь:"))
         self.user_combo = QComboBox()
         self.user_combo.setEditable(True)
+        self.user_combo.setMinimumWidth(250)
         user_layout.addWidget(self.user_combo)
         layout.addLayout(user_layout)
         
@@ -76,12 +77,12 @@ class LoginDialog(QDialog):
             for user in users:
                 self.user_combo.addItem(user['username'])
         else:
-            # Для демонстрации добавляем тестовых пользователей
+            # Для демонстрации добавляем тестовых пользователей с понятными именами
             test_users = {
-                'admin': ['admin'],
-                'employee': ['employee'],
-                'shareholder': ['shareholder'],
-                'supervisor': ['supervisor']
+                'admin': ['Администратор'],
+                'employee': ['Сотрудник Газпрома', 'Сотрудник Сбербанка'],
+                'shareholder': ['Иванов И.И.', 'Петров П.П.', 'ООО "Инвестиционная компания"'],
+                'supervisor': ['Инспектор ЦБ РФ']
             }
             for user in test_users.get(role, []):
                 self.user_combo.addItem(user)
@@ -105,9 +106,12 @@ class LoginDialog(QDialog):
             self.user_data = user_data
             self.accept()
         else:
-            # Для демонстрации создаем тестовые данные
+            # Для демонстрации создаем тестовые данные с понятными именами
+            role = role_map[self.role_combo.currentText()]
             self.user_data = {
                 'username': username,
-                'role': role_map[self.role_combo.currentText()]
+                'role': role,
+                'company_id': 1 if role == 'employee' and 'Газпром' in username else 2,
+                'shareholder_id': 1 if 'Иванов' in username else (2 if 'Петров' in username else 3)
             }
             self.accept()

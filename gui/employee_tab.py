@@ -2,15 +2,15 @@
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
                              QTableWidget, QTableWidgetItem, QGroupBox, 
                              QLineEdit, QLabel, QFormLayout, QComboBox,
-                             QDateEdit, QMessageBox, QTabWidget, QSplitter)
-from PyQt6.QtCore import Qt, QDate
+                             QMessageBox, QTabWidget)
+from PyQt6.QtCore import Qt
 from gui.dialogs import CompanyDialog
 
 class EmployeeTab(QWidget):
     def __init__(self, parent):
         super().__init__(parent)
         self.parent = parent
-        self.company_id = parent.user_data.get('company_id', 1)  # Для демо берем первую компанию
+        self.company_id = parent.user_data.get('company_id', 1)
         self.setup_ui()
         self.load_data()
     
@@ -86,11 +86,11 @@ class EmployeeTab(QWidget):
         search_group.setLayout(search_layout)
         shares_layout.addWidget(search_group)
         
-        # Таблица акций
+        # Таблица акций (без ID)
         self.shares_table = QTableWidget()
-        self.shares_table.setColumnCount(7)
+        self.shares_table.setColumnCount(6)
         self.shares_table.setHorizontalHeaderLabels(
-            ["ID", "Рег. номер", "Дата", "Тип", "Категория", "Кол-во", "Номинал"]
+            ["Рег. номер", "Дата регистрации", "Тип", "Категория", "Количество", "Номинальная стоимость"]
         )
         shares_layout.addWidget(self.shares_table)
         
@@ -110,9 +110,9 @@ class EmployeeTab(QWidget):
         report1_layout.addWidget(self.report1_btn)
         
         self.report1_table = QTableWidget()
-        self.report1_table.setColumnCount(5)
+        self.report1_table.setColumnCount(4)
         self.report1_table.setHorizontalHeaderLabels(
-            ["Выпуск акций", "Рег. номер", "Тип", "Кол-во в выпуске", "На лицевых счетах"]
+            ["Рег. номер", "Тип", "Кол-во в выпуске", "На лицевых счетах"]
         )
         report1_layout.addWidget(self.report1_table)
         
@@ -128,9 +128,9 @@ class EmployeeTab(QWidget):
         report2_layout.addWidget(self.report2_btn)
         
         self.report2_table = QTableWidget()
-        self.report2_table.setColumnCount(5)
+        self.report2_table.setColumnCount(4)
         self.report2_table.setHorizontalHeaderLabels(
-            ["Акционер", "Тип", "ИНН", "Кол-во акций", "Номера счетов"]
+            ["Акционер", "Тип", "ИНН", "Кол-во акций"]
         )
         report2_layout.addWidget(self.report2_table)
         
@@ -166,13 +166,12 @@ class EmployeeTab(QWidget):
         issues = self.parent.share_issue_model.get_by_company(self.company_id)
         self.shares_table.setRowCount(len(issues))
         for i, issue in enumerate(issues):
-            self.shares_table.setItem(i, 0, QTableWidgetItem(str(issue['issue_id'])))
-            self.shares_table.setItem(i, 1, QTableWidgetItem(issue['registration_number']))
-            self.shares_table.setItem(i, 2, QTableWidgetItem(str(issue['registration_date'])))
-            self.shares_table.setItem(i, 3, QTableWidgetItem(issue['share_type']))
-            self.shares_table.setItem(i, 4, QTableWidgetItem(issue.get('category_series', '-')))
-            self.shares_table.setItem(i, 5, QTableWidgetItem(str(issue['quantity'])))
-            self.shares_table.setItem(i, 6, QTableWidgetItem(f"{issue['nominal_value']:,.2f}"))
+            self.shares_table.setItem(i, 0, QTableWidgetItem(issue['registration_number']))
+            self.shares_table.setItem(i, 1, QTableWidgetItem(str(issue['registration_date'])))
+            self.shares_table.setItem(i, 2, QTableWidgetItem(issue['share_type']))
+            self.shares_table.setItem(i, 3, QTableWidgetItem(issue.get('category_series', '-')))
+            self.shares_table.setItem(i, 4, QTableWidgetItem(str(issue['quantity'])))
+            self.shares_table.setItem(i, 5, QTableWidgetItem(f"{issue['nominal_value']:,.2f}"))
         self.shares_table.resizeColumnsToContents()
     
     def search_shares(self):
@@ -184,13 +183,12 @@ class EmployeeTab(QWidget):
                 issue = self.parent.share_issue_model.get_by_registration_number(reg_number)
                 if issue and issue['company_id'] == self.company_id:
                     self.shares_table.setRowCount(1)
-                    self.shares_table.setItem(0, 0, QTableWidgetItem(str(issue['issue_id'])))
-                    self.shares_table.setItem(0, 1, QTableWidgetItem(issue['registration_number']))
-                    self.shares_table.setItem(0, 2, QTableWidgetItem(str(issue['registration_date'])))
-                    self.shares_table.setItem(0, 3, QTableWidgetItem(issue['share_type']))
-                    self.shares_table.setItem(0, 4, QTableWidgetItem(issue.get('category_series', '-')))
-                    self.shares_table.setItem(0, 5, QTableWidgetItem(str(issue['quantity'])))
-                    self.shares_table.setItem(0, 6, QTableWidgetItem(f"{issue['nominal_value']:,.2f}"))
+                    self.shares_table.setItem(0, 0, QTableWidgetItem(issue['registration_number']))
+                    self.shares_table.setItem(0, 1, QTableWidgetItem(str(issue['registration_date'])))
+                    self.shares_table.setItem(0, 2, QTableWidgetItem(issue['share_type']))
+                    self.shares_table.setItem(0, 3, QTableWidgetItem(issue.get('category_series', '-')))
+                    self.shares_table.setItem(0, 4, QTableWidgetItem(str(issue['quantity'])))
+                    self.shares_table.setItem(0, 5, QTableWidgetItem(f"{issue['nominal_value']:,.2f}"))
                 else:
                     self.shares_table.setRowCount(0)
                     QMessageBox.information(self, "Результат", "Акция не найдена")
@@ -205,13 +203,12 @@ class EmployeeTab(QWidget):
                 
                 self.shares_table.setRowCount(len(issues))
                 for i, issue in enumerate(issues):
-                    self.shares_table.setItem(i, 0, QTableWidgetItem(str(issue['issue_id'])))
-                    self.shares_table.setItem(i, 1, QTableWidgetItem(issue['registration_number']))
-                    self.shares_table.setItem(i, 2, QTableWidgetItem(str(issue['registration_date'])))
-                    self.shares_table.setItem(i, 3, QTableWidgetItem(issue['share_type']))
-                    self.shares_table.setItem(i, 4, QTableWidgetItem(issue.get('category_series', '-')))
-                    self.shares_table.setItem(i, 5, QTableWidgetItem(str(issue['quantity'])))
-                    self.shares_table.setItem(i, 6, QTableWidgetItem(f"{issue['nominal_value']:,.2f}"))
+                    self.shares_table.setItem(i, 0, QTableWidgetItem(issue['registration_number']))
+                    self.shares_table.setItem(i, 1, QTableWidgetItem(str(issue['registration_date'])))
+                    self.shares_table.setItem(i, 2, QTableWidgetItem(issue['share_type']))
+                    self.shares_table.setItem(i, 3, QTableWidgetItem(issue.get('category_series', '-')))
+                    self.shares_table.setItem(i, 4, QTableWidgetItem(str(issue['quantity'])))
+                    self.shares_table.setItem(i, 5, QTableWidgetItem(f"{issue['nominal_value']:,.2f}"))
             except ValueError:
                 QMessageBox.warning(self, "Ошибка", "Введите корректные значения стоимости")
     
@@ -235,14 +232,11 @@ class EmployeeTab(QWidget):
                 si.registration_number,
                 si.share_type,
                 si.quantity as total_quantity,
-                si.nominal_value,
-                COALESCE(SUM(acs.quantity), 0) as on_accounts,
-                STRING_AGG(DISTINCT a.account_number, ', ') as accounts
+                COALESCE(SUM(acs.quantity), 0) as on_accounts
             FROM share_issues si
             LEFT JOIN account_shares acs ON si.issue_id = acs.issue_id
-            LEFT JOIN accounts a ON acs.account_id = a.account_id
             WHERE si.company_id = %s
-            GROUP BY si.issue_id, si.registration_number, si.share_type, si.quantity, si.nominal_value
+            GROUP BY si.issue_id, si.registration_number, si.share_type, si.quantity
             ORDER BY si.issue_id
         """
         results = self.parent.db.execute_query(query, (self.company_id,))
@@ -250,10 +244,9 @@ class EmployeeTab(QWidget):
         self.report1_table.setRowCount(len(results))
         for i, row in enumerate(results):
             self.report1_table.setItem(i, 0, QTableWidgetItem(row['registration_number']))
-            self.report1_table.setItem(i, 1, QTableWidgetItem(row['registration_number']))
-            self.report1_table.setItem(i, 2, QTableWidgetItem(row['share_type']))
-            self.report1_table.setItem(i, 3, QTableWidgetItem(str(row['total_quantity'])))
-            self.report1_table.setItem(i, 4, QTableWidgetItem(f"{row['on_accounts']} / {row['total_quantity']}"))
+            self.report1_table.setItem(i, 1, QTableWidgetItem(row['share_type']))
+            self.report1_table.setItem(i, 2, QTableWidgetItem(str(row['total_quantity'])))
+            self.report1_table.setItem(i, 3, QTableWidgetItem(str(row['on_accounts'])))
         
         self.report1_table.resizeColumnsToContents()
     
@@ -264,8 +257,7 @@ class EmployeeTab(QWidget):
                 s.name,
                 s.type,
                 s.inn,
-                SUM(acs.quantity) as total_shares,
-                STRING_AGG(DISTINCT a.account_number, ', ') as accounts
+                SUM(acs.quantity) as total_shares
             FROM shareholders s
             JOIN accounts a ON s.shareholder_id = a.shareholder_id
             JOIN account_shares acs ON a.account_id = acs.account_id
@@ -279,10 +271,9 @@ class EmployeeTab(QWidget):
         self.report2_table.setRowCount(len(results))
         for i, row in enumerate(results):
             self.report2_table.setItem(i, 0, QTableWidgetItem(row['name']))
-            self.report2_table.setItem(i, 1, QTableWidgetItem(row['type']))
+            self.report2_table.setItem(i, 1, QTableWidgetItem('Физическое' if row['type'] == 'individual' else 'Юридическое'))
             self.report2_table.setItem(i, 2, QTableWidgetItem(row.get('inn', '-')))
             self.report2_table.setItem(i, 3, QTableWidgetItem(str(row['total_shares'])))
-            self.report2_table.setItem(i, 4, QTableWidgetItem(row['accounts']))
         
         self.report2_table.resizeColumnsToContents()
     
