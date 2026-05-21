@@ -1,10 +1,10 @@
-# gui/supervisor_tab.py
+# gui/supervisor_tab.py - ПОЛНОСТЬЮ ИСПРАВЛЕННАЯ ВЕРСИЯ
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
                              QTableWidget, QTableWidgetItem, QGroupBox, 
                              QLineEdit, QLabel, QFormLayout, QComboBox,
                              QDateEdit, QMessageBox, QTabWidget)
 from PyQt6.QtCore import Qt, QDate
-from gui.dialogs import ShareIssueDialog, CompanyDialog, ShareholderDialog
+from gui.dialogs import ShareIssueDialog, CompanyDialog, ShareholderDialog, OperationDialog
 
 class SupervisorTab(QWidget):
     def __init__(self, parent):
@@ -19,7 +19,7 @@ class SupervisorTab(QWidget):
         # Вкладки
         self.tab_widget = QTabWidget()
         
-        # Вкладка управления (добавление информации)
+        # ==================== ВКЛАДКА УПРАВЛЕНИЯ ====================
         self.manage_tab = QWidget()
         manage_layout = QVBoxLayout()
         
@@ -27,8 +27,10 @@ class SupervisorTab(QWidget):
         add_company_group = QGroupBox("Добавление акционерного общества")
         add_company_layout = QHBoxLayout()
         self.add_company_btn = QPushButton("Добавить АО")
+        self.add_company_btn.setStyleSheet("background-color: #2196F3; color: white;")
         self.add_company_btn.clicked.connect(self.add_company)
         add_company_layout.addWidget(self.add_company_btn)
+        add_company_layout.addStretch()
         add_company_group.setLayout(add_company_layout)
         manage_layout.addWidget(add_company_group)
         
@@ -36,47 +38,41 @@ class SupervisorTab(QWidget):
         add_shareholder_group = QGroupBox("Добавление акционера")
         add_shareholder_layout = QHBoxLayout()
         self.add_shareholder_btn = QPushButton("Добавить акционера")
+        self.add_shareholder_btn.setStyleSheet("background-color: #2196F3; color: white;")
         self.add_shareholder_btn.clicked.connect(self.add_shareholder)
         add_shareholder_layout.addWidget(self.add_shareholder_btn)
+        add_shareholder_layout.addStretch()
         add_shareholder_group.setLayout(add_shareholder_layout)
         manage_layout.addWidget(add_shareholder_group)
         
-        # Добавление операции
+        # Добавление операции (теперь с выбором выпуска акций)
         add_operation_group = QGroupBox("Добавление операции по лицевому счету")
-        add_operation_layout = QFormLayout()
+        add_operation_layout = QVBoxLayout()
         
-        self.op_account = QLineEdit()
-        self.op_account.setPlaceholderText("Номер лицевого счета")
-        self.op_type = QComboBox()
-        self.op_type.addItems(["Зачисление", "Списание"])
-        self.op_date = QDateEdit()
-        self.op_date.setDate(QDate.currentDate())
-        self.op_date.setCalendarPopup(True)
-        self.op_quantity = QLineEdit()
-        self.op_basis = QLineEdit()
-        self.op_basis.setPlaceholderText("Основание операции")
+        # Информационная метка
+        info_label = QLabel("Нажмите кнопку для открытия диалога добавления операции")
+        info_label.setStyleSheet("color: #666; margin: 5px;")
+        add_operation_layout.addWidget(info_label)
         
-        add_operation_layout.addRow("Лицевой счет:", self.op_account)
-        add_operation_layout.addRow("Тип операции:", self.op_type)
-        add_operation_layout.addRow("Дата:", self.op_date)
-        add_operation_layout.addRow("Количество акций:", self.op_quantity)
-        add_operation_layout.addRow("Основание:", self.op_basis)
-        
-        self.add_operation_btn = QPushButton("Добавить операцию")
+        btn_layout = QHBoxLayout()
+        self.add_operation_btn = QPushButton("Открыть диалог добавления операции")
+        self.add_operation_btn.setStyleSheet("background-color: #4CAF50; color: white; font-size: 12px; padding: 8px;")
         self.add_operation_btn.clicked.connect(self.add_operation)
-        add_operation_layout.addRow("", self.add_operation_btn)
+        btn_layout.addWidget(self.add_operation_btn)
+        btn_layout.addStretch()
+        add_operation_layout.addLayout(btn_layout)
         
         add_operation_group.setLayout(add_operation_layout)
         manage_layout.addWidget(add_operation_group)
         
+        manage_layout.addStretch()
         self.manage_tab.setLayout(manage_layout)
         self.tab_widget.addTab(self.manage_tab, "Управление")
         
-        # Вкладка акций
+        # ==================== ВКЛАДКА АКЦИЙ ====================
         self.shares_tab = QWidget()
         shares_layout = QVBoxLayout()
         
-        # Таблица акций для редактирования (без ID)
         shares_group = QGroupBox("Ранее зарегистрированные акции")
         shares_table_layout = QVBoxLayout()
         
@@ -94,6 +90,7 @@ class SupervisorTab(QWidget):
         self.delete_share_btn.clicked.connect(self.delete_share)
         shares_buttons.addWidget(self.edit_share_btn)
         shares_buttons.addWidget(self.delete_share_btn)
+        shares_buttons.addStretch()
         shares_table_layout.addLayout(shares_buttons)
         
         shares_group.setLayout(shares_table_layout)
@@ -102,11 +99,10 @@ class SupervisorTab(QWidget):
         self.shares_tab.setLayout(shares_layout)
         self.tab_widget.addTab(self.shares_tab, "Акции")
         
-        # Вкладка счетов
+        # ==================== ВКЛАДКА СЧЕТОВ ====================
         self.accounts_tab = QWidget()
         accounts_layout = QVBoxLayout()
         
-        # Таблица счетов для редактирования (без ID)
         accounts_group = QGroupBox("Ранее зарегистрированные лицевые счета")
         accounts_table_layout = QVBoxLayout()
         
@@ -124,6 +120,7 @@ class SupervisorTab(QWidget):
         self.delete_account_btn.clicked.connect(self.delete_account)
         accounts_buttons.addWidget(self.edit_account_btn)
         accounts_buttons.addWidget(self.delete_account_btn)
+        accounts_buttons.addStretch()
         accounts_table_layout.addLayout(accounts_buttons)
         
         accounts_group.setLayout(accounts_table_layout)
@@ -189,78 +186,16 @@ class SupervisorTab(QWidget):
             self.load_data()
     
     def add_operation(self):
-        """Добавление операции по лицевому счету"""
-        account_number = self.op_account.text()
-        if not account_number:
-            QMessageBox.warning(self, "Ошибка", "Введите номер лицевого счета")
-            return
-        
-        # Поиск счета
-        account = self.parent.account_model.get_by_number(account_number)
-        if not account:
-            QMessageBox.warning(self, "Ошибка", "Лицевой счет не найден")
-            return
-        
-        try:
-            quantity = int(self.op_quantity.text())
-            if quantity <= 0:
-                raise ValueError
-        except ValueError:
-            QMessageBox.warning(self, "Ошибка", "Количество акций должно быть положительным числом")
-            return
-        
-        # Получение списка выпусков акций
-        issues = self.parent.share_issue_model.get_all()
-        if not issues:
-            QMessageBox.warning(self, "Ошибка", "Нет доступных выпусков акций")
-            return
-        
-        # Для простоты берем первый выпуск
-        issue_id = issues[0]['issue_id']
-        
-        operation_data = {
-            'account_id': account['account_id'],
-            'type_id': 1 if self.op_type.currentText() == "Зачисление" else 2,
-            'operation_date': self.op_date.date().toPyDate(),
-            'share_issue_id': issue_id,
-            'quantity': quantity,
-            'basis_document': self.op_basis.text()
-        }
-        
-        try:
-            self.parent.operation_model.create(operation_data)
-            
-            # Обновление остатка на счете
-            if operation_data['type_id'] == 1:  # Зачисление
-                new_balance = account['current_balance'] + quantity
-                self.parent.account_model.db.execute_update(
-                    "UPDATE accounts SET current_balance = %s WHERE account_id = %s",
-                    (new_balance, account['account_id'])
-                )
-                self.parent.account_model.add_shares(account['account_id'], issue_id, quantity)
-            else:  # Списание
-                if quantity > account['current_balance']:
-                    QMessageBox.warning(self, "Ошибка", "Недостаточно акций на счете")
-                    return
-                new_balance = account['current_balance'] - quantity
-                self.parent.account_model.db.execute_update(
-                    "UPDATE accounts SET current_balance = %s WHERE account_id = %s",
-                    (new_balance, account['account_id'])
-                )
-                self.parent.account_model.db.execute_update("""
-                    UPDATE account_shares 
-                    SET quantity = quantity - %s 
-                    WHERE account_id = %s AND issue_id = %s AND quantity >= %s
-                """, (quantity, account['account_id'], issue_id, quantity))
-            
+        """Добавление операции через диалог с выбором выпуска акций"""
+        dialog = OperationDialog(
+            self, 
+            self.parent.operation_model,
+            self.parent.account_model,
+            self.parent.share_issue_model
+        )
+        if dialog.exec():
             self.parent.show_message("Успех", "Операция добавлена")
-            self.op_account.clear()
-            self.op_quantity.clear()
-            self.op_basis.clear()
             self.load_data()
-            
-        except Exception as e:
-            QMessageBox.critical(self, "Ошибка", f"Ошибка добавления операции: {str(e)}")
     
     def edit_share(self):
         issue_id = self.get_selected_issue_id()
@@ -273,6 +208,8 @@ class SupervisorTab(QWidget):
                                          self.parent.company_model, issue[0])
                 if dialog.exec():
                     self.load_data()
+        else:
+            QMessageBox.warning(self, "Предупреждение", "Выберите запись для редактирования")
     
     def delete_share(self):
         issue_id = self.get_selected_issue_id()
@@ -282,6 +219,8 @@ class SupervisorTab(QWidget):
             if reply == QMessageBox.StandardButton.Yes:
                 self.parent.share_issue_model.delete(issue_id)
                 self.load_data()
+        else:
+            QMessageBox.warning(self, "Предупреждение", "Выберите запись для удаления")
     
     def edit_account(self):
         account_id = self.get_selected_account_id()
@@ -293,13 +232,15 @@ class SupervisorTab(QWidget):
                                       self.parent.shareholder_model, account)
                 if dialog.exec():
                     self.load_data()
+        else:
+            QMessageBox.warning(self, "Предупреждение", "Выберите запись для редактирования")
     
     def delete_account(self):
         account_id = self.get_selected_account_id()
         if account_id:
             account = self.parent.account_model.get_by_id(account_id)
             if account and account['current_balance'] > 0:
-                QMessageBox.warning(self, "Ошибка", "Нельзя удалить счет с положительным остатком")
+                QMessageBox.warning(self, "Ошибка", "Нельзя удалить счет с положительным остатком акций")
             else:
                 reply = QMessageBox.question(self, "Подтверждение", "Удалить лицевой счет?",
                                             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
@@ -308,6 +249,8 @@ class SupervisorTab(QWidget):
                         "DELETE FROM accounts WHERE account_id = %s", (account_id,)
                     )
                     self.load_data()
+        else:
+            QMessageBox.warning(self, "Предупреждение", "Выберите запись для удаления")
     
     def refresh(self):
         self.load_data()
