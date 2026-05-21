@@ -5,6 +5,9 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
                              QMessageBox, QTabWidget)
 from PyQt6.QtCore import Qt
 from gui.dialogs import CompanyDialog
+from utils.pdf_exporter import PDFExporter
+from datetime import datetime
+from reportlab.lib.pagesizes import A4
 
 class EmployeeTab(QWidget):
     def __init__(self, parent):
@@ -86,7 +89,7 @@ class EmployeeTab(QWidget):
         search_group.setLayout(search_layout)
         shares_layout.addWidget(search_group)
         
-        # Таблица акций (без ID)
+        # Таблица акций
         self.shares_table = QTableWidget()
         self.shares_table.setColumnCount(6)
         self.shares_table.setHorizontalHeaderLabels(
@@ -105,9 +108,17 @@ class EmployeeTab(QWidget):
         report1_group = QGroupBox("Отчет: Акции компании и их наличие на лицевых счетах")
         report1_layout = QVBoxLayout()
         
+        btn_layout1 = QHBoxLayout()
         self.report1_btn = QPushButton("Сформировать отчет")
         self.report1_btn.clicked.connect(self.generate_shares_accounts_report)
-        report1_layout.addWidget(self.report1_btn)
+        btn_layout1.addWidget(self.report1_btn)
+        
+        self.report1_pdf_btn = QPushButton("Сохранить в PDF")
+        self.report1_pdf_btn.setStyleSheet("background-color: #4CAF50; color: white;")
+        self.report1_pdf_btn.clicked.connect(self.export_shares_accounts_pdf)
+        btn_layout1.addWidget(self.report1_pdf_btn)
+        
+        report1_layout.addLayout(btn_layout1)
         
         self.report1_table = QTableWidget()
         self.report1_table.setColumnCount(4)
@@ -123,9 +134,17 @@ class EmployeeTab(QWidget):
         report2_group = QGroupBox("Отчет: Акционеры, владеющие акциями компании")
         report2_layout = QVBoxLayout()
         
+        btn_layout2 = QHBoxLayout()
         self.report2_btn = QPushButton("Сформировать отчет")
         self.report2_btn.clicked.connect(self.generate_shareholders_report)
-        report2_layout.addWidget(self.report2_btn)
+        btn_layout2.addWidget(self.report2_btn)
+        
+        self.report2_pdf_btn = QPushButton("Сохранить в PDF")
+        self.report2_pdf_btn.setStyleSheet("background-color: #4CAF50; color: white;")
+        self.report2_pdf_btn.clicked.connect(self.export_shareholders_pdf)
+        btn_layout2.addWidget(self.report2_pdf_btn)
+        
+        report2_layout.addLayout(btn_layout2)
         
         self.report2_table = QTableWidget()
         self.report2_table.setColumnCount(4)
@@ -276,6 +295,110 @@ class EmployeeTab(QWidget):
             self.report2_table.setItem(i, 3, QTableWidgetItem(str(row['total_shares'])))
         
         self.report2_table.resizeColumnsToContents()
+    
+    def export_shares_accounts_pdf(self):
+        """Экспорт отчета об акциях компании в PDF"""
+        query = """
+            SELECT 
+                si.registration_number,
+                si.share_type,
+                si.quantity as total_quantity,
+                COALESCE(SUM(acs.quantity), 0) as on_accounts
+            FROM share_issues si
+            LEFT JOIN account_shares acs ON si.issue_id = acs.issue_id
+            WHERE si.company_id = %s
+            GROUP BY si.issue_id, si.registration_number, si.share_type, si.quantity
+            ORDER BY si.issue_id
+        """
+        results = self.parent.db.execute_query(query, (self.company_id,))
+        
+        if results:
+            company = self.parent.company_model.get_by_id(self.company_id)
+            pdf_exporter = PDFExporter(self)
+            file_path = pdf_exporter.get_save_filename(self, f"company_shares_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf")
+            if file_path:
+                from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+                from reportlab.lib.styles import getSampleStyleSheet
+                
+                doc = SimpleDocTemplate(file_path, pagesize=A4)
+                elements = []
+                
+                # Заголовок
+                styles = getSampleStyleSheet()
+                title_style = styles['Heading1']
+                title_style.alignment = 1  # Center
+                elements.append(Paragraph("Отчет об акциях компании", title_style))
+                elements.append(Paragraph(f"<b>{company.get('full_name', '') if company else ''}</b>", styles['Normal']))
+                elements.append(Spacer(1, 20))
+                
+                # Таблица
+                headers = ["Регистрационный номер", "Тип", "Кол-во в выпуске", "На лицевых счетах"]
+                data = []
+                for row in results:
+                    data.append([
+                        row['registration_number'],
+                        row['share_type'],
+                        str(row['total_quantity']),
+                        str(row['on_accounts'])
+                    ])
+                
+                elements.extend(pdf_exporter.create_table(data, headers))
+                doc.build(elements)
+                QMessageBox.information(self, "Успех", f"Отчет сохранен в файл:\n{file_path}")
+        else:
+            QMessageBox.information(self, "Результат", "Нет данных для отчета")
+    
+    def export_shareholders_pdf(self):
+        """Экспорт отчета об акционерах компании в PDF"""
+        query = """
+            SELECT DISTINCT
+                s.name,
+                s.type,
+                s.inn,
+                SUM(acs.quantity) as total_shares
+            FROM shareholders s
+            JOIN accounts a ON s.shareholder_id = a.shareholder_id
+            JOIN account_shares acs ON a.account_id = acs.account_id
+            JOIN share_issues si ON acs.issue_id = si.issue_id
+            WHERE si.company_id = %s
+            GROUP BY s.shareholder_id, s.name, s.type, s.inn
+            ORDER BY total_shares DESC
+        """
+        results = self.parent.db.execute_query(query, (self.company_id,))
+        
+        if results:
+            company = self.parent.company_model.get_by_id(self.company_id)
+            pdf_exporter = PDFExporter(self)
+            file_path = pdf_exporter.get_save_filename(self, f"company_shareholders_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf")
+            if file_path:
+                from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+                from reportlab.lib.styles import getSampleStyleSheet
+                
+                doc = SimpleDocTemplate(file_path, pagesize=A4)
+                elements = []
+                
+                styles = getSampleStyleSheet()
+                title_style = styles['Heading1']
+                title_style.alignment = 1
+                elements.append(Paragraph("Отчет об акционерах компании", title_style))
+                elements.append(Paragraph(f"<b>{company.get('full_name', '') if company else ''}</b>", styles['Normal']))
+                elements.append(Spacer(1, 20))
+                
+                headers = ["Акционер", "Тип", "ИНН", "Кол-во акций"]
+                data = []
+                for row in results:
+                    data.append([
+                        row['name'],
+                        'Физическое' if row['type'] == 'individual' else 'Юридическое',
+                        row.get('inn', '-'),
+                        str(row['total_shares'])
+                    ])
+                
+                elements.extend(pdf_exporter.create_table(data, headers))
+                doc.build(elements)
+                QMessageBox.information(self, "Успех", f"Отчет сохранен в файл:\n{file_path}")
+        else:
+            QMessageBox.information(self, "Результат", "Нет данных для отчета")
     
     def refresh(self):
         self.load_data()

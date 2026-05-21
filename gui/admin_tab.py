@@ -1,10 +1,11 @@
-# gui/admin_tab.py (полностью исправленная версия)
+# gui/admin_tab.py
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
                              QTableWidget, QTableWidgetItem, QGroupBox, 
                              QLineEdit, QLabel, QMessageBox, QTabWidget)
 from PyQt6.QtCore import Qt
 from gui.dialogs import CompanyDialog, ShareIssueDialog, ShareholderDialog, AccountDialog
-
+from utils.pdf_exporter import PDFExporter
+from datetime import datetime
 
 class AdminTab(QWidget):
     def __init__(self, parent):
@@ -210,6 +211,12 @@ class AdminTab(QWidget):
         self.city_report_btn = QPushButton("Сформировать отчет")
         self.city_report_btn.clicked.connect(self.city_report)
         city_layout.addWidget(self.city_report_btn)
+        
+        self.city_pdf_btn = QPushButton("Сохранить в PDF")
+        self.city_pdf_btn.setStyleSheet("background-color: #4CAF50; color: white;")
+        self.city_pdf_btn.clicked.connect(self.export_city_report_pdf)
+        city_layout.addWidget(self.city_pdf_btn)
+        
         city_report_group.setLayout(city_layout)
         reports_layout.addWidget(city_report_group)
         
@@ -223,6 +230,12 @@ class AdminTab(QWidget):
         self.status_report_btn = QPushButton("Сформировать отчет")
         self.status_report_btn.clicked.connect(self.status_report)
         status_layout.addWidget(self.status_report_btn)
+        
+        self.status_pdf_btn = QPushButton("Сохранить в PDF")
+        self.status_pdf_btn.setStyleSheet("background-color: #4CAF50; color: white;")
+        self.status_pdf_btn.clicked.connect(self.export_status_report_pdf)
+        status_layout.addWidget(self.status_pdf_btn)
+        
         status_report_group.setLayout(status_layout)
         reports_layout.addWidget(status_report_group)
         
@@ -246,7 +259,6 @@ class AdminTab(QWidget):
             self.table.setItem(i, 5, QTableWidgetItem(f"{company['authorized_capital']:,.2f}"))
             self.table.setItem(i, 6, QTableWidgetItem(company.get('city', '')))
             
-            # Сохраняем ID в скрытом виде
             self.table.item(i, 0).setData(Qt.ItemDataRole.UserRole, company['company_id'])
         self.table.resizeColumnsToContents()
         
@@ -340,7 +352,6 @@ class AdminTab(QWidget):
             issue = self.parent.share_issue_model.get_by_registration_number(search_text)
             if issue:
                 self.issues_table.setRowCount(1)
-                # Используем .get() для безопасного доступа к ключам
                 self.issues_table.setItem(0, 0, QTableWidgetItem(issue.get('company_name', issue.get('full_name', 'Неизвестно'))))
                 self.issues_table.setItem(0, 1, QTableWidgetItem(issue.get('registration_number', '')))
                 self.issues_table.setItem(0, 2, QTableWidgetItem(str(issue.get('registration_date', ''))))
@@ -348,7 +359,6 @@ class AdminTab(QWidget):
                 self.issues_table.setItem(0, 4, QTableWidgetItem(issue.get('category_series', '')))
                 self.issues_table.setItem(0, 5, QTableWidgetItem(str(issue.get('quantity', '0'))))
                 self.issues_table.setItem(0, 6, QTableWidgetItem(f"{issue.get('nominal_value', 0):,.2f}"))
-                # Сохраняем ID
                 self.issues_table.item(0, 0).setData(Qt.ItemDataRole.UserRole, issue.get('issue_id'))
                 self.issues_table.resizeColumnsToContents()
             else:
@@ -569,6 +579,32 @@ class AdminTab(QWidget):
                     self.report_text.setItem(i, 2, QTableWidgetItem(sh.get('inn', '')))
                     self.report_text.setItem(i, 3, QTableWidgetItem(sh['status']))
                 self.report_text.resizeColumnsToContents()
+            else:
+                QMessageBox.information(self, "Результат", f"Акционеры со статусом '{status}' не найдены")
+        else:
+            QMessageBox.warning(self, "Ошибка", "Введите статус для поиска")
+    
+    def export_city_report_pdf(self):
+        """Экспорт отчета по городам в PDF"""
+        city = self.city_input.text().strip()
+        if city:
+            companies = self.parent.company_model.get_by_city(city)
+            if companies:
+                pdf_exporter = PDFExporter(self)
+                pdf_exporter.export_companies_report(companies, city)
+            else:
+                QMessageBox.information(self, "Результат", f"Компании в городе '{city}' не найдены")
+        else:
+            QMessageBox.warning(self, "Ошибка", "Введите город для поиска")
+    
+    def export_status_report_pdf(self):
+        """Экспорт отчета по статусу акционеров в PDF"""
+        status = self.status_combo.text().strip()
+        if status:
+            shareholders = self.parent.shareholder_model.get_by_status(status)
+            if shareholders:
+                pdf_exporter = PDFExporter(self)
+                pdf_exporter.export_shareholders_report(shareholders, status)
             else:
                 QMessageBox.information(self, "Результат", f"Акционеры со статусом '{status}' не найдены")
         else:

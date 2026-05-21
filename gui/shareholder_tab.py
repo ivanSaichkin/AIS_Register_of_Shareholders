@@ -5,6 +5,8 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
                              QMessageBox, QTabWidget)
 from PyQt6.QtCore import Qt
 from gui.dialogs import ShareholderDialog
+from utils.pdf_exporter import PDFExporter
+from datetime import datetime
 
 class ShareholderTab(QWidget):
     def __init__(self, parent):
@@ -77,7 +79,7 @@ class ShareholderTab(QWidget):
         search_group.setLayout(search_layout)
         accounts_layout.addWidget(search_group)
         
-        # Таблица счетов (без ID)
+        # Таблица счетов
         self.accounts_table = QTableWidget()
         self.accounts_table.setColumnCount(5)
         self.accounts_table.setHorizontalHeaderLabels(
@@ -85,6 +87,15 @@ class ShareholderTab(QWidget):
         )
         self.accounts_table.itemSelectionChanged.connect(self.on_account_selected)
         accounts_layout.addWidget(self.accounts_table)
+        
+        # Кнопка экспорта счетов
+        accounts_export_layout = QHBoxLayout()
+        self.export_accounts_pdf_btn = QPushButton("Экспортировать все счета в PDF")
+        self.export_accounts_pdf_btn.setStyleSheet("background-color: #4CAF50; color: white;")
+        self.export_accounts_pdf_btn.clicked.connect(self.export_accounts_pdf)
+        accounts_export_layout.addStretch()
+        accounts_export_layout.addWidget(self.export_accounts_pdf_btn)
+        accounts_layout.addLayout(accounts_export_layout)
         
         # Таблица акций на счете
         shares_group = QGroupBox("Акции на выбранном счете")
@@ -95,6 +106,16 @@ class ShareholderTab(QWidget):
             ["Компания", "Рег. номер", "Тип", "Кол-во"]
         )
         shares_layout.addWidget(self.shares_table)
+        
+        # Кнопка экспорта акций на счете
+        shares_export_layout = QHBoxLayout()
+        self.export_shares_pdf_btn = QPushButton("Экспортировать акции счета в PDF")
+        self.export_shares_pdf_btn.setStyleSheet("background-color: #4CAF50; color: white;")
+        self.export_shares_pdf_btn.clicked.connect(self.export_shares_on_account_pdf)
+        shares_export_layout.addStretch()
+        shares_export_layout.addWidget(self.export_shares_pdf_btn)
+        shares_layout.addLayout(shares_export_layout)
+        
         shares_group.setLayout(shares_layout)
         accounts_layout.addWidget(shares_group)
         
@@ -113,13 +134,22 @@ class ShareholderTab(QWidget):
         select_layout.addWidget(self.account_combo)
         operations_layout.addLayout(select_layout)
         
-        # Таблица операций (без ID)
+        # Таблица операций
         self.operations_table = QTableWidget()
         self.operations_table.setColumnCount(5)
         self.operations_table.setHorizontalHeaderLabels(
             ["Дата", "Тип", "Компания", "Кол-во", "Основание"]
         )
         operations_layout.addWidget(self.operations_table)
+        
+        # Кнопка экспорта операций
+        operations_export_layout = QHBoxLayout()
+        self.export_operations_pdf_btn = QPushButton("Экспортировать операции в PDF")
+        self.export_operations_pdf_btn.setStyleSheet("background-color: #4CAF50; color: white;")
+        self.export_operations_pdf_btn.clicked.connect(self.export_operations_pdf)
+        operations_export_layout.addStretch()
+        operations_export_layout.addWidget(self.export_operations_pdf_btn)
+        operations_layout.addLayout(operations_export_layout)
         
         self.operations_tab.setLayout(operations_layout)
         self.tab_widget.addTab(self.operations_tab, "Операции по счетам")
@@ -152,8 +182,6 @@ class ShareholderTab(QWidget):
             self.accounts_table.setItem(i, 2, QTableWidgetItem(str(acc.get('close_date', '-'))))
             self.accounts_table.setItem(i, 3, QTableWidgetItem(str(acc['current_balance'])))
             self.accounts_table.setItem(i, 4, QTableWidgetItem(acc['status']))
-            
-            # Сохраняем ID для внутреннего использования
             self.accounts_table.item(i, 0).setData(Qt.ItemDataRole.UserRole, acc['account_id'])
         
         # Обновляем комбобокс для операций
@@ -241,6 +269,44 @@ class ShareholderTab(QWidget):
             dialog = ShareholderDialog(self, self.parent.shareholder_model, shareholder)
             if dialog.exec():
                 self.load_data()
+    
+    def export_accounts_pdf(self):
+        """Экспорт всех счетов акционера в PDF"""
+        accounts = self.parent.account_model.get_by_shareholder(self.shareholder_id)
+        if accounts:
+            shareholder = self.parent.shareholder_model.get_by_id(self.shareholder_id)
+            pdf_exporter = PDFExporter(self)
+            pdf_exporter.export_accounts_report(accounts, shareholder.get('name') if shareholder else None)
+        else:
+            QMessageBox.information(self, "Результат", "Нет лицевых счетов для экспорта")
+    
+    def export_shares_on_account_pdf(self):
+        """Экспорт акций на выбранном счете в PDF"""
+        account_id = self.get_selected_account_id()
+        if account_id:
+            shares = self.parent.account_model.get_shares_on_account(account_id)
+            if shares:
+                account = self.parent.account_model.get_by_id(account_id)
+                pdf_exporter = PDFExporter(self)
+                pdf_exporter.export_shares_on_account_report(shares, account.get('account_number') if account else None)
+            else:
+                QMessageBox.information(self, "Результат", "Нет акций на выбранном счете")
+        else:
+            QMessageBox.warning(self, "Ошибка", "Выберите лицевой счет")
+    
+    def export_operations_pdf(self):
+        """Экспорт операций по выбранному счету в PDF"""
+        account_id = self.account_combo.currentData()
+        if account_id:
+            operations = self.parent.operation_model.get_by_account(account_id)
+            if operations:
+                account = self.parent.account_model.get_by_id(account_id)
+                pdf_exporter = PDFExporter(self)
+                pdf_exporter.export_operations_report(operations, account.get('account_number') if account else None)
+            else:
+                QMessageBox.information(self, "Результат", "Нет операций для экспорта")
+        else:
+            QMessageBox.warning(self, "Ошибка", "Выберите лицевой счет")
     
     def refresh(self):
         self.load_data()

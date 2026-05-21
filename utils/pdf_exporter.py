@@ -6,16 +6,62 @@ from reportlab.lib.units import mm, cm
 from reportlab.platypus import (SimpleDocTemplate, Table, TableStyle, Paragraph, 
                                 Spacer, PageBreak, Image, KeepTogether)
 from reportlab.lib.enums import TA_CENTER, TA_LEFT
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
 from datetime import datetime
 from PyQt6.QtWidgets import QFileDialog, QMessageBox
-from PyQt6.QtCore import QDate
 import os
 
 class PDFExporter:
-    """Класс для экспорта отчетов в PDF"""
+    """Класс для экспорта отчетов в PDF с поддержкой кириллицы"""
+    
+    # Регистрация шрифтов для поддержки кириллицы
+    _fonts_registered = False
+    
+    @classmethod
+    def register_fonts(cls):
+        """Регистрация шрифтов для поддержки кириллицы"""
+        if cls._fonts_registered:
+            return
+        
+        # Список возможных путей к шрифтам на разных ОС
+        possible_fonts = [
+            # Linux
+            '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+            '/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf',
+            '/usr/share/fonts/truetype/ubuntu/Ubuntu-R.ttf',
+            '/usr/share/fonts/truetype/freefont/FreeSans.ttf',
+            '/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf',
+            # Windows
+            'C:/Windows/Fonts/arial.ttf',
+            'C:/Windows/Fonts/times.ttf',
+            'C:/Windows/Fonts/calibri.ttf',
+            # macOS
+            '/System/Library/Fonts/Helvetica.ttc',
+            '/Library/Fonts/Arial.ttf',
+        ]
+        
+        font_registered = False
+        for font_path in possible_fonts:
+            if os.path.exists(font_path):
+                try:
+                    pdfmetrics.registerFont(TTFont('RussianFont', font_path))
+                    font_registered = True
+                    print(f"Зарегистрирован шрифт: {font_path}")
+                    break
+                except Exception as e:
+                    print(f"Ошибка регистрации шрифта {font_path}: {e}")
+                    continue
+        
+        # Если не нашли подходящий шрифт, создаем базовый
+        if not font_registered:
+            print("Не найден подходящий шрифт, будут использованы стандартные шрифты")
+        
+        cls._fonts_registered = True
     
     def __init__(self, parent=None):
         self.parent = parent
+        self.register_fonts()
     
     @staticmethod
     def get_save_filename(parent, default_name="report.pdf"):
@@ -28,14 +74,18 @@ class PDFExporter:
         )
         return file_path
     
-    def create_header(self, title, subtitle=None):
-        """Создание заголовка отчета"""
+    def get_styles(self):
+        """Получение стилей с поддержкой кириллицы"""
         styles = getSampleStyleSheet()
+        
+        # Определяем название шрифта для кириллицы
+        font_name = 'RussianFont' if 'RussianFont' in pdfmetrics._fonts else 'Helvetica'
         
         # Стиль для основного заголовка
         title_style = ParagraphStyle(
             'CustomTitle',
             parent=styles['Heading1'],
+            fontName=font_name,
             fontSize=16,
             alignment=TA_CENTER,
             spaceAfter=12,
@@ -46,52 +96,91 @@ class PDFExporter:
         subtitle_style = ParagraphStyle(
             'CustomSubtitle',
             parent=styles['Normal'],
+            fontName=font_name,
             fontSize=10,
             alignment=TA_CENTER,
             spaceAfter=20,
             textColor=colors.HexColor('#546e7a')
         )
         
-        elements = []
-        elements.append(Paragraph(title, title_style))
-        if subtitle:
-            elements.append(Paragraph(subtitle, subtitle_style))
-        
-        # Информация о дате создания
+        # Стиль для даты
         date_style = ParagraphStyle(
             'DateStyle',
             parent=styles['Normal'],
+            fontName=font_name,
             fontSize=8,
             alignment=TA_LEFT,
             textColor=colors.HexColor('#78909c')
         )
+        
+        # Стиль для заголовка таблицы
+        table_title_style = ParagraphStyle(
+            'TableTitle',
+            parent=styles['Normal'],
+            fontSize=12,
+            alignment=TA_LEFT,
+            spaceAfter=6,
+            fontName=font_name
+        )
+        
+        # Стиль для обычного текста
+        normal_style = ParagraphStyle(
+            'NormalStyle',
+            parent=styles['Normal'],
+            fontSize=9,
+            fontName=font_name
+        )
+        
+        return {
+            'title': title_style,
+            'subtitle': subtitle_style,
+            'date': date_style,
+            'table_title': table_title_style,
+            'normal': normal_style
+        }
+    
+    def create_header(self, title, subtitle=None):
+        """Создание заголовка отчета"""
+        styles = self.get_styles()
+        
+        elements = []
+        elements.append(Paragraph(title, styles['title']))
+        if subtitle:
+            elements.append(Paragraph(subtitle, styles['subtitle']))
+        
+        # Информация о дате создания
         current_date = datetime.now().strftime("%d.%m.%Y %H:%M")
-        elements.append(Paragraph(f"Дата формирования: {current_date}", date_style))
+        elements.append(Paragraph(f"Дата формирования: {current_date}", styles['date']))
         elements.append(Spacer(1, 10))
         
         return elements
     
     def create_table(self, data, headers, title=None):
-        """Создание таблицы с данными"""
-        styles = getSampleStyleSheet()
+        """Создание таблицы с данными с поддержкой кириллицы"""
+        styles = self.get_styles()
+        
         elements = []
         
         if title:
-            title_style = ParagraphStyle(
-                'TableTitle',
-                parent=styles['Normal'],
-                fontSize=12,
-                alignment=TA_LEFT,
-                spaceAfter=6,
-                fontName='Helvetica-Bold'
-            )
-            elements.append(Paragraph(title, title_style))
+            elements.append(Paragraph(title, styles['table_title']))
         
         # Подготовка данных для таблицы
-        table_data = [headers]
+        table_data = []
+        
+        # Заголовки (преобразуем в Paragraph для поддержки кириллицы)
+        header_row = []
+        for header in headers:
+            header_row.append(Paragraph(f"<b>{header}</b>", styles['table_title']))
+        table_data.append(header_row)
+        
+        # Данные
         for row in data:
-            # Преобразуем все данные в строки
-            formatted_row = [str(cell) if cell is not None else '-' for cell in row]
+            formatted_row = []
+            for cell in row:
+                cell_str = str(cell) if cell is not None else '-'
+                # Заменяем специальные символы для безопасного отображения
+                cell_str = cell_str.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                formatted_row.append(Paragraph(cell_str, styles['normal']))
             table_data.append(formatted_row)
         
         # Создание таблицы
@@ -103,23 +192,19 @@ class PDFExporter:
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1a237e')),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
             ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 10),
+            ('VALIGN', (0, 0), (-1, 0), 'MIDDLE'),
             ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
             ('TOPPADDING', (0, 0), (-1, 0), 8),
             
             # Строки данных
             ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-            ('TEXTCOLOR', (0, 1), (-1, -1), colors.black),
             ('ALIGN', (0, 1), (-1, -1), 'LEFT'),
-            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
-            ('FONTSIZE', (0, 1), (-1, -1), 9),
+            ('VALIGN', (0, 1), (-1, -1), 'TOP'),
             ('TOPPADDING', (0, 1), (-1, -1), 5),
             ('BOTTOMPADDING', (0, 1), (-1, -1), 5),
             
             # Границы
             ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
-            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
             
             # Чередование цветов строк
             ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f5f5f5')]),
@@ -164,8 +249,8 @@ class PDFExporter:
             elements.extend(self.create_table(table_data, headers, "Список акционерных обществ"))
             
             # Итоговая информация
-            styles = getSampleStyleSheet()
-            summary = Paragraph(f"<b>Всего компаний: {len(companies_data)}</b>", styles['Normal'])
+            styles = self.get_styles()
+            summary = Paragraph(f"<b>Всего компаний: {len(companies_data)}</b>", styles['normal'])
             elements.append(summary)
             
             doc.build(elements)
@@ -210,72 +295,9 @@ class PDFExporter:
             elements.extend(self.create_table(table_data, headers, "Список акционеров"))
             
             # Итоговая информация
-            styles = getSampleStyleSheet()
-            summary = Paragraph(f"<b>Всего акционеров: {len(shareholders_data)}</b>", styles['Normal'])
+            styles = self.get_styles()
+            summary = Paragraph(f"<b>Всего акционеров: {len(shareholders_data)}</b>", styles['normal'])
             elements.append(summary)
-            
-            doc.build(elements)
-            QMessageBox.information(self.parent, "Успех", f"Отчет сохранен в файл:\n{file_path}")
-            return True
-            
-        except Exception as e:
-            QMessageBox.critical(self.parent, "Ошибка", f"Ошибка при создании PDF: {str(e)}")
-            return False
-    
-    def export_company_details_report(self, company_data, shares_data):
-        """Экспорт подробного отчета об акционерном обществе и его акциях"""
-        file_path = self.get_save_filename(self.parent, f"company_{company_data.get('short_name', 'report')}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf")
-        if not file_path:
-            return False
-        
-        try:
-            doc = SimpleDocTemplate(file_path, pagesize=A4,
-                                   topMargin=20*mm, bottomMargin=20*mm,
-                                   leftMargin=15*mm, rightMargin=15*mm)
-            elements = []
-            
-            # Заголовок
-            title = f"Отчет об акционерном обществе"
-            subtitle = company_data.get('full_name', '')
-            elements.extend(self.create_header(title, subtitle))
-            
-            # Информация об АО
-            styles = getSampleStyleSheet()
-            info_style = ParagraphStyle('InfoStyle', parent=styles['Normal'], fontSize=10, spaceAfter=6)
-            
-            elements.append(Paragraph("<b>Основная информация:</b>", styles['Heading4']))
-            elements.append(Spacer(1, 5))
-            elements.append(Paragraph(f"<b>Полное наименование:</b> {company_data.get('full_name', '-')}", info_style))
-            elements.append(Paragraph(f"<b>Сокращенное наименование:</b> {company_data.get('short_name', '-')}", info_style))
-            elements.append(Paragraph(f"<b>ИНН:</b> {company_data.get('inn', '-')}", info_style))
-            elements.append(Paragraph(f"<b>ОГРН:</b> {company_data.get('ogrn', '-')}", info_style))
-            elements.append(Paragraph(f"<b>Адрес:</b> {company_data.get('address', '-')}", info_style))
-            elements.append(Paragraph(f"<b>Уставной капитал:</b> {company_data.get('authorized_capital', 0):,.2f} руб.", info_style))
-            elements.append(Paragraph(f"<b>Город:</b> {company_data.get('city', '-')}", info_style))
-            elements.append(Spacer(1, 10))
-            
-            # Информация о выпусках акций
-            if shares_data:
-                elements.append(Paragraph("<b>Выпуски акций:</b>", styles['Heading4']))
-                elements.append(Spacer(1, 5))
-                
-                headers = ["Рег. номер", "Дата", "Тип", "Категория", "Количество", "Номинал", "Статус"]
-                table_data = []
-                for share in shares_data:
-                    table_data.append([
-                        share.get('registration_number', '-'),
-                        str(share.get('registration_date', '-')),
-                        share.get('share_type', '-'),
-                        share.get('category_series', '-'),
-                        str(share.get('quantity', '0')),
-                        f"{share.get('nominal_value', 0):,.2f} руб.",
-                        share.get('status', '-')
-                    ])
-                
-                elements.extend(self.create_table(table_data, headers, "Выпуски акций"))
-                elements.append(Paragraph(f"<b>Всего выпусков: {len(shares_data)}</b>", styles['Normal']))
-            else:
-                elements.append(Paragraph("<i>Нет выпусков акций</i>", styles['Italic']))
             
             doc.build(elements)
             QMessageBox.information(self.parent, "Успех", f"Отчет сохранен в файл:\n{file_path}")
@@ -318,11 +340,11 @@ class PDFExporter:
             elements.extend(self.create_table(table_data, headers, "Список лицевых счетов"))
             
             # Итоговая информация
-            styles = getSampleStyleSheet()
+            styles = self.get_styles()
             total_shares = sum(acc.get('current_balance', 0) for acc in accounts_data)
             elements.append(Spacer(1, 10))
-            elements.append(Paragraph(f"<b>Всего счетов: {len(accounts_data)}</b>", styles['Normal']))
-            elements.append(Paragraph(f"<b>Общее количество акций: {total_shares}</b>", styles['Normal']))
+            elements.append(Paragraph(f"<b>Всего счетов: {len(accounts_data)}</b>", styles['normal']))
+            elements.append(Paragraph(f"<b>Общее количество акций: {total_shares}</b>", styles['normal']))
             
             doc.build(elements)
             QMessageBox.information(self.parent, "Успех", f"Отчет сохранен в файл:\n{file_path}")
@@ -364,14 +386,14 @@ class PDFExporter:
             elements.extend(self.create_table(table_data, headers, "Список операций"))
             
             # Итоговая информация
-            styles = getSampleStyleSheet()
+            styles = self.get_styles()
             total_credited = sum(op.get('quantity', 0) for op in operations_data if op.get('operation_type') == 'Зачисление')
             total_debited = sum(op.get('quantity', 0) for op in operations_data if op.get('operation_type') == 'Списание')
             
             elements.append(Spacer(1, 10))
-            elements.append(Paragraph(f"<b>Всего операций: {len(operations_data)}</b>", styles['Normal']))
-            elements.append(Paragraph(f"<b>Зачислено акций: {total_credited}</b>", styles['Normal']))
-            elements.append(Paragraph(f"<b>Списано акций: {total_debited}</b>", styles['Normal']))
+            elements.append(Paragraph(f"<b>Всего операций: {len(operations_data)}</b>", styles['normal']))
+            elements.append(Paragraph(f"<b>Зачислено акций: {total_credited}</b>", styles['normal']))
+            elements.append(Paragraph(f"<b>Списано акций: {total_debited}</b>", styles['normal']))
             
             doc.build(elements)
             QMessageBox.information(self.parent, "Успех", f"Отчет сохранен в файл:\n{file_path}")
@@ -413,11 +435,11 @@ class PDFExporter:
             elements.extend(self.create_table(table_data, headers, "Акции на счете"))
             
             # Итоговая информация
-            styles = getSampleStyleSheet()
+            styles = self.get_styles()
             total_shares = sum(share.get('quantity', 0) for share in shares_data)
             elements.append(Spacer(1, 10))
-            elements.append(Paragraph(f"<b>Всего видов акций: {len(shares_data)}</b>", styles['Normal']))
-            elements.append(Paragraph(f"<b>Общее количество акций: {total_shares}</b>", styles['Normal']))
+            elements.append(Paragraph(f"<b>Всего видов акций: {len(shares_data)}</b>", styles['normal']))
+            elements.append(Paragraph(f"<b>Общее количество акций: {total_shares}</b>", styles['normal']))
             
             doc.build(elements)
             QMessageBox.information(self.parent, "Успех", f"Отчет сохранен в файл:\n{file_path}")
