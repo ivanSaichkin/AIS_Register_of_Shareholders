@@ -14,7 +14,7 @@ class LoginDialog(QDialog):
     
     def setup_ui(self):
         self.setWindowTitle("Авторизация")
-        self.setFixedSize(450, 250)
+        self.setFixedSize(500, 280)
         self.setModal(True)
         
         layout = QVBoxLayout()
@@ -22,7 +22,7 @@ class LoginDialog(QDialog):
         # Заголовок
         title = QLabel("АИС Реестр акционеров")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title.setStyleSheet("font-size: 18px; font-weight: bold; margin: 20px;")
+        title.setStyleSheet("font-size: 20px; font-weight: bold; margin: 20px; color: #1a237e;")
         layout.addWidget(title)
         
         # Выбор роли
@@ -39,13 +39,20 @@ class LoginDialog(QDialog):
         user_layout.addWidget(QLabel("Пользователь:"))
         self.user_combo = QComboBox()
         self.user_combo.setEditable(True)
-        self.user_combo.setMinimumWidth(250)
+        self.user_combo.setMinimumWidth(300)
         user_layout.addWidget(self.user_combo)
         layout.addLayout(user_layout)
+        
+        # Информационная метка
+        self.info_label = QLabel("Выберите роль и пользователя для входа")
+        self.info_label.setStyleSheet("color: #666; font-size: 9px;")
+        self.info_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self.info_label)
         
         # Кнопки
         button_layout = QHBoxLayout()
         self.login_btn = QPushButton("Войти")
+        self.login_btn.setStyleSheet("background-color: #4CAF50; color: white; padding: 8px;")
         self.login_btn.clicked.connect(self.login)
         cancel_btn = QPushButton("Отмена")
         cancel_btn.clicked.connect(self.reject)
@@ -67,25 +74,33 @@ class LoginDialog(QDialog):
         }
         role = role_map[role_text]
         
-        # Получение пользователей с данной ролью
+        # Получение пользователей с данной ролью из БД
         users = self.user_model.db.execute_query(
-            "SELECT username FROM users WHERE role = %s",
+            "SELECT username FROM users WHERE role = %s ORDER BY username",
             (role,)
         )
         
         if users:
             for user in users:
                 self.user_combo.addItem(user['username'])
+            self.info_label.setText(f"Доступно {len(users)} пользователей")
         else:
-            # Для демонстрации добавляем тестовых пользователей с понятными именами
-            test_users = {
-                'admin': ['Администратор'],
-                'employee': ['Сотрудник Газпрома', 'Сотрудник Сбербанка'],
-                'shareholder': ['Иванов И.И.', 'Петров П.П.', 'ООО "Инвестиционная компания"'],
-                'supervisor': ['Инспектор ЦБ РФ']
+            # Если нет пользователей, показываем стандартных
+            default_users = {
+                'admin': ['admin'],
+                'employee': [],
+                'shareholder': [],
+                'supervisor': ['supervisor']
             }
-            for user in test_users.get(role, []):
+            for user in default_users.get(role, []):
                 self.user_combo.addItem(user)
+            
+            if role == 'employee':
+                self.info_label.setText("Нет сотрудников. Добавьте АО для автоматического создания пользователя")
+            elif role == 'shareholder':
+                self.info_label.setText("Нет акционеров. Добавьте акционера для автоматического создания пользователя")
+            else:
+                self.info_label.setText("Выберите пользователя из списка")
     
     def login(self):
         username = self.user_combo.currentText()
@@ -106,12 +121,35 @@ class LoginDialog(QDialog):
             self.user_data = user_data
             self.accept()
         else:
-            # Для демонстрации создаем тестовые данные с понятными именами
+            # Для тестовых пользователей
             role = role_map[self.role_combo.currentText()]
+            
+            # Определяем company_id и shareholder_id для тестовых пользователей
+            company_id = None
+            shareholder_id = None
+            
+            if role == 'employee':
+                # Пытаемся найти компанию по имени пользователя
+                companies = self.user_model.db.execute_query(
+                    "SELECT company_id, short_name FROM joint_stock_companies WHERE short_name ILIKE %s",
+                    (f'%{username.split("_")[-1] if "_" in username else username}%',)
+                )
+                if companies:
+                    company_id = companies[0]['company_id']
+            
+            elif role == 'shareholder':
+                # Пытаемся найти акционера по имени
+                shareholders = self.user_model.db.execute_query(
+                    "SELECT shareholder_id, name FROM shareholders WHERE name ILIKE %s",
+                    (f'%{username}%',)
+                )
+                if shareholders:
+                    shareholder_id = shareholders[0]['shareholder_id']
+            
             self.user_data = {
                 'username': username,
                 'role': role,
-                'company_id': 1 if role == 'employee' and 'Газпром' in username else 2,
-                'shareholder_id': 1 if 'Иванов' in username else (2 if 'Петров' in username else 3)
+                'company_id': company_id or 1,
+                'shareholder_id': shareholder_id or 1
             }
             self.accept()

@@ -1,11 +1,13 @@
 # gui/main_window.py
 from PyQt6.QtWidgets import (QMainWindow, QTabWidget, QStatusBar, 
-                             QMessageBox, QVBoxLayout, QWidget)
+                             QMessageBox, QVBoxLayout, QWidget, QMenuBar, QMenu)
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QAction
 from gui.admin_tab import AdminTab
 from gui.employee_tab import EmployeeTab
 from gui.shareholder_tab import ShareholderTab
 from gui.supervisor_tab import SupervisorTab
+from gui.login_dialog import LoginDialog
 from database.db_manager import DatabaseManager
 from database.models import *
 
@@ -24,6 +26,7 @@ class MainWindow(QMainWindow):
         self.operation_model = OperationModel(self.db)
         
         self.setup_ui()
+        self.setup_menu()
         self.setWindowTitle(f"АИС Реестр акционеров - {self.get_role_name()}")
         self.setGeometry(100, 100, 1400, 800)
     
@@ -35,6 +38,64 @@ class MainWindow(QMainWindow):
             'supervisor': 'Сотрудник надзора'
         }
         return roles.get(self.role, 'Пользователь')
+    
+    def setup_menu(self):
+        """Создание меню"""
+        menubar = self.menuBar()
+        
+        # Меню "Файл"
+        file_menu = menubar.addMenu("Файл")
+        
+        # Действие "Сменить пользователя"
+        logout_action = QAction("Сменить пользователя", self)
+        logout_action.triggered.connect(self.logout)
+        file_menu.addAction(logout_action)
+        
+        # Разделитель
+        file_menu.addSeparator()
+        
+        # Действие "Выход"
+        exit_action = QAction("Выход", self)
+        exit_action.triggered.connect(self.close)
+        file_menu.addAction(exit_action)
+        
+        # Меню "Справка"
+        help_menu = menubar.addMenu("Справка")
+        about_action = QAction("О программе", self)
+        about_action.triggered.connect(self.show_about)
+        help_menu.addAction(about_action)
+    
+    def logout(self):
+        """Выход из текущего профиля и вход под другим"""
+        reply = QMessageBox.question(self, "Подтверждение", 
+            "Вы уверены, что хотите выйти из текущего профиля?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        
+        if reply == QMessageBox.StandardButton.Yes:
+            # Закрываем текущее окно
+            self.close()
+            
+            # Открываем диалог авторизации заново
+            login_dialog = LoginDialog(self.db)
+            if login_dialog.exec():
+                user_data = login_dialog.user_data
+                new_window = MainWindow(self.db, user_data)
+                new_window.show()
+    
+    def show_about(self):
+        """Информация о программе"""
+        QMessageBox.about(self, "О программе",
+            "АИС «Реестр акционеров акционерного общества»\n\n"
+            "Версия: 2.0\n\n"
+            "Разработано в МГТУ им. Н.Э. Баумана\n"
+            "Кафедра ИУ5 «Системы обработки информации и управления»\n\n"
+            "Функциональность:\n"
+            "• Управление акционерными обществами\n"
+            "• Управление выпусками акций\n"
+            "• Учет акционеров и лицевых счетов\n"
+            "• Операции с акциями\n"
+            "• Формирование отчетов с диаграммами\n"
+            "• Экспорт отчетов в PDF")
     
     def setup_ui(self):
         central_widget = QWidget()

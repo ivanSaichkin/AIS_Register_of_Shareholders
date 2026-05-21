@@ -1,4 +1,4 @@
-# gui/employee_tab.py
+# gui/employee_tab.py - ПОЛНОСТЬЮ ИСПРАВЛЕННАЯ ВЕРСИЯ
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
                              QTableWidget, QTableWidgetItem, QGroupBox, 
                              QLineEdit, QLabel, QFormLayout, QComboBox,
@@ -39,6 +39,7 @@ class EmployeeTab(QWidget):
         company_layout.addRow("Уставной капитал:", self.company_capital_label)
         
         self.edit_company_btn = QPushButton("Редактировать информацию")
+        self.edit_company_btn.setStyleSheet("background-color: #2196F3; color: white;")
         self.edit_company_btn.clicked.connect(self.edit_company)
         company_layout.addRow("", self.edit_company_btn)
         
@@ -79,12 +80,14 @@ class EmployeeTab(QWidget):
         search_layout.addWidget(self.nominal_range_widget)
         
         self.search_btn = QPushButton("Поиск")
+        self.search_btn.setStyleSheet("background-color: #2196F3; color: white;")
         self.search_btn.clicked.connect(self.search_shares)
         search_layout.addWidget(self.search_btn)
         
         self.clear_search_btn = QPushButton("Очистить")
         self.clear_search_btn.clicked.connect(self.clear_search)
         search_layout.addWidget(self.clear_search_btn)
+        search_layout.addStretch()
         
         search_group.setLayout(search_layout)
         shares_layout.addWidget(search_group)
@@ -104,12 +107,13 @@ class EmployeeTab(QWidget):
         self.reports_tab = QWidget()
         reports_layout = QVBoxLayout()
         
-        # Отчет 1: Акции и лицевые счета
+        # Отчет 1: Акции компании и их наличие на лицевых счетах
         report1_group = QGroupBox("Отчет: Акции компании и их наличие на лицевых счетах")
         report1_layout = QVBoxLayout()
         
         btn_layout1 = QHBoxLayout()
         self.report1_btn = QPushButton("Сформировать отчет")
+        self.report1_btn.setStyleSheet("background-color: #2196F3; color: white;")
         self.report1_btn.clicked.connect(self.generate_shares_accounts_report)
         btn_layout1.addWidget(self.report1_btn)
         
@@ -117,6 +121,7 @@ class EmployeeTab(QWidget):
         self.report1_pdf_btn.setStyleSheet("background-color: #4CAF50; color: white;")
         self.report1_pdf_btn.clicked.connect(self.export_shares_accounts_pdf)
         btn_layout1.addWidget(self.report1_pdf_btn)
+        btn_layout1.addStretch()
         
         report1_layout.addLayout(btn_layout1)
         
@@ -136,6 +141,7 @@ class EmployeeTab(QWidget):
         
         btn_layout2 = QHBoxLayout()
         self.report2_btn = QPushButton("Сформировать отчет")
+        self.report2_btn.setStyleSheet("background-color: #2196F3; color: white;")
         self.report2_btn.clicked.connect(self.generate_shareholders_report)
         btn_layout2.addWidget(self.report2_btn)
         
@@ -143,6 +149,7 @@ class EmployeeTab(QWidget):
         self.report2_pdf_btn.setStyleSheet("background-color: #4CAF50; color: white;")
         self.report2_pdf_btn.clicked.connect(self.export_shareholders_pdf)
         btn_layout2.addWidget(self.report2_pdf_btn)
+        btn_layout2.addStretch()
         
         report2_layout.addLayout(btn_layout2)
         
@@ -197,7 +204,7 @@ class EmployeeTab(QWidget):
         search_type = self.search_type.currentText()
         
         if search_type == "По регистрационному номеру":
-            reg_number = self.reg_number_input.text()
+            reg_number = self.reg_number_input.text().strip()
             if reg_number:
                 issue = self.parent.share_issue_model.get_by_registration_number(reg_number)
                 if issue and issue['company_id'] == self.company_id:
@@ -297,7 +304,7 @@ class EmployeeTab(QWidget):
         self.report2_table.resizeColumnsToContents()
     
     def export_shares_accounts_pdf(self):
-        """Экспорт отчета об акциях компании в PDF"""
+        """Экспорт отчета об акциях компании в PDF с диаграммами"""
         query = """
             SELECT 
                 si.registration_number,
@@ -318,38 +325,129 @@ class EmployeeTab(QWidget):
             file_path = pdf_exporter.get_save_filename(self, f"company_shares_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf")
             if file_path:
                 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
-                from reportlab.lib.styles import getSampleStyleSheet
+                from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+                from reportlab.lib.enums import TA_CENTER, TA_LEFT
+                from reportlab.lib import colors
+                from reportlab.graphics.shapes import Drawing
+                from reportlab.graphics.charts.barcharts import VerticalBarChart
+                from reportlab.graphics.charts.piecharts import Pie
                 
-                doc = SimpleDocTemplate(file_path, pagesize=A4)
+                doc = SimpleDocTemplate(file_path, pagesize=A4,
+                                       topMargin=20, bottomMargin=20,
+                                       leftMargin=20, rightMargin=20)
                 elements = []
                 
-                # Заголовок
+                # Стили
                 styles = getSampleStyleSheet()
-                title_style = styles['Heading1']
-                title_style.alignment = 1  # Center
+                font_name = pdf_exporter.get_font_name()
+                
+                title_style = ParagraphStyle('CustomTitle', parent=styles['Heading1'],
+                    fontName=font_name, fontSize=16, alignment=TA_CENTER, spaceAfter=12,
+                    textColor=colors.HexColor('#1a237e'))
+                
+                normal_style = ParagraphStyle('NormalStyle', parent=styles['Normal'],
+                    fontName=font_name, fontSize=9)
+                
+                # Заголовок
                 elements.append(Paragraph("Отчет об акциях компании", title_style))
-                elements.append(Paragraph(f"<b>{company.get('full_name', '') if company else ''}</b>", styles['Normal']))
+                if company:
+                    elements.append(Paragraph(company.get('full_name', ''), normal_style))
                 elements.append(Spacer(1, 20))
                 
                 # Таблица
                 headers = ["Регистрационный номер", "Тип", "Кол-во в выпуске", "На лицевых счетах"]
-                data = []
+                table_data = []
+                quantities = []
+                reg_numbers = []
+                on_accounts_list = []
+                
                 for row in results:
-                    data.append([
-                        row['registration_number'],
+                    reg_num = row['registration_number']
+                    qty = float(row['total_quantity']) if row['total_quantity'] else 0
+                    on_acc = float(row['on_accounts']) if row['on_accounts'] else 0
+                    quantities.append(qty)
+                    on_accounts_list.append(on_acc)
+                    reg_numbers.append(reg_num[-8:] if len(reg_num) > 8 else reg_num)
+                    table_data.append([
+                        reg_num,
                         row['share_type'],
-                        str(row['total_quantity']),
-                        str(row['on_accounts'])
+                        f"{int(qty):,}" if qty == int(qty) else f"{qty:,}",
+                        f"{int(on_acc):,}" if on_acc == int(on_acc) else f"{on_acc:,}"
                     ])
                 
-                elements.extend(pdf_exporter.create_table(data, headers))
+                # Создание таблицы
+                t = pdf_exporter.create_table(table_data, headers)
+                elements.extend(t)
+                
+                # Столбчатая диаграмма
+                if quantities:
+                    elements.append(Spacer(1, 20))
+                    drawing = Drawing(400, 200)
+                    bc = VerticalBarChart()
+                    bc.x = 50
+                    bc.y = 50
+                    bc.width = 300
+                    bc.height = 120
+                    bc.data = [quantities[:10]]
+                    bc.categoryAxis.categoryNames = reg_numbers[:10]
+                    bc.categoryAxis.labels.angle = 45
+                    bc.categoryAxis.labels.fontSize = 8
+                    bc.categoryAxis.labels.fontName = font_name
+                    bc.valueAxis.valueMin = 0
+                    bc.valueAxis.valueMax = max(quantities) * 1.2 if quantities else 10
+                    bc.bars[0].fillColor = colors.HexColor('#1a237e')
+                    drawing.add(bc)
+                    elements.append(Paragraph("Диаграмма количества акций по выпускам", normal_style))
+                    elements.append(Spacer(1, 5))
+                    elements.append(drawing)
+                
+                # Круговая диаграмма по типам акций
+                type_quantities = {}
+                for row in results:
+                    stype = row['share_type']
+                    qty = float(row['total_quantity']) if row['total_quantity'] else 0
+                    type_quantities[stype] = type_quantities.get(stype, 0) + qty
+                
+                if type_quantities:
+                    elements.append(Spacer(1, 20))
+                    drawing2 = Drawing(400, 250)
+                    pie = Pie()
+                    pie.x = 150
+                    pie.y = 70
+                    pie.width = 150
+                    pie.height = 150
+                    pie.data = list(type_quantities.values())
+                    pie.labels = list(type_quantities.keys())
+                    pie.sideLabels = True
+                    pie.slices.strokeWidth = 0.5
+                    
+                    colors_list = [colors.HexColor('#1a237e'), colors.HexColor('#4caf50')]
+                    for i, color in enumerate(colors_list):
+                        if i < len(pie.slices):
+                            pie.slices[i].fillColor = color
+                            pie.slices[i].fontName = font_name
+                    
+                    drawing2.add(pie)
+                    elements.append(Paragraph("Распределение акций по типам", normal_style))
+                    elements.append(Spacer(1, 5))
+                    elements.append(drawing2)
+                
+                # Итоги
+                total_qty = sum(quantities)
+                total_on_acc = sum(on_accounts_list)
+                elements.append(Spacer(1, 10))
+                elements.append(Paragraph(f"<b>Всего выпусков: {len(results)}</b>", normal_style))
+                elements.append(Paragraph(f"<b>Общее количество акций: {int(total_qty):,}</b>", normal_style))
+                elements.append(Paragraph(f"<b>Акций на лицевых счетах: {int(total_on_acc):,}</b>", normal_style))
+                elements.append(Paragraph(f"<b>Процент размещения: {(total_on_acc/total_qty*100):.1f}%</b>" if total_qty > 0 else "<b>Процент размещения: 0%</b>", normal_style))
+                
                 doc.build(elements)
                 QMessageBox.information(self, "Успех", f"Отчет сохранен в файл:\n{file_path}")
         else:
             QMessageBox.information(self, "Результат", "Нет данных для отчета")
     
     def export_shareholders_pdf(self):
-        """Экспорт отчета об акционерах компании в PDF"""
+        """Экспорт отчета об акционерах компании в PDF с диаграммами"""
         query = """
             SELECT DISTINCT
                 s.name,
@@ -372,29 +470,116 @@ class EmployeeTab(QWidget):
             file_path = pdf_exporter.get_save_filename(self, f"company_shareholders_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf")
             if file_path:
                 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
-                from reportlab.lib.styles import getSampleStyleSheet
+                from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+                from reportlab.lib.enums import TA_CENTER, TA_LEFT
+                from reportlab.lib import colors
+                from reportlab.graphics.shapes import Drawing
+                from reportlab.graphics.charts.barcharts import VerticalBarChart
+                from reportlab.graphics.charts.piecharts import Pie
                 
-                doc = SimpleDocTemplate(file_path, pagesize=A4)
+                doc = SimpleDocTemplate(file_path, pagesize=A4,
+                                       topMargin=20, bottomMargin=20,
+                                       leftMargin=20, rightMargin=20)
                 elements = []
                 
+                # Стили
                 styles = getSampleStyleSheet()
-                title_style = styles['Heading1']
-                title_style.alignment = 1
+                font_name = pdf_exporter.get_font_name()
+                
+                title_style = ParagraphStyle('CustomTitle', parent=styles['Heading1'],
+                    fontName=font_name, fontSize=16, alignment=TA_CENTER, spaceAfter=12,
+                    textColor=colors.HexColor('#1a237e'))
+                
+                normal_style = ParagraphStyle('NormalStyle', parent=styles['Normal'],
+                    fontName=font_name, fontSize=9)
+                
+                # Заголовок
                 elements.append(Paragraph("Отчет об акционерах компании", title_style))
-                elements.append(Paragraph(f"<b>{company.get('full_name', '') if company else ''}</b>", styles['Normal']))
+                if company:
+                    elements.append(Paragraph(company.get('full_name', ''), normal_style))
                 elements.append(Spacer(1, 20))
                 
+                # Таблица
                 headers = ["Акционер", "Тип", "ИНН", "Кол-во акций"]
-                data = []
+                table_data = []
+                quantities = []
+                names = []
+                
                 for row in results:
-                    data.append([
+                    qty = float(row['total_shares']) if row['total_shares'] else 0
+                    quantities.append(qty)
+                    names.append(row['name'][:20] if len(row['name']) > 20 else row['name'])
+                    table_data.append([
                         row['name'],
                         'Физическое' if row['type'] == 'individual' else 'Юридическое',
                         row.get('inn', '-'),
-                        str(row['total_shares'])
+                        f"{int(qty):,}" if qty == int(qty) else f"{qty:,}"
                     ])
                 
-                elements.extend(pdf_exporter.create_table(data, headers))
+                t = pdf_exporter.create_table(table_data, headers)
+                elements.extend(t)
+                
+                # Столбчатая диаграмма (топ-10)
+                if quantities:
+                    elements.append(Spacer(1, 20))
+                    drawing = Drawing(400, 200)
+                    bc = VerticalBarChart()
+                    bc.x = 50
+                    bc.y = 50
+                    bc.width = 300
+                    bc.height = 120
+                    bc.data = [quantities[:10]]
+                    bc.categoryAxis.categoryNames = names[:10]
+                    bc.categoryAxis.labels.angle = 45
+                    bc.categoryAxis.labels.fontSize = 7
+                    bc.categoryAxis.labels.fontName = font_name
+                    bc.valueAxis.valueMin = 0
+                    bc.valueAxis.valueMax = max(quantities) * 1.2 if quantities else 10
+                    bc.bars[0].fillColor = colors.HexColor('#1a237e')
+                    drawing.add(bc)
+                    elements.append(Paragraph("Топ-10 акционеров по количеству акций", normal_style))
+                    elements.append(Spacer(1, 5))
+                    elements.append(drawing)
+                
+                # Круговая диаграмма по типам акционеров
+                type_counts = {'Физические лица': 0, 'Юридические лица': 0}
+                for row in results:
+                    qty = float(row['total_shares']) if row['total_shares'] else 0
+                    if row['type'] == 'individual':
+                        type_counts['Физические лица'] += qty
+                    else:
+                        type_counts['Юридические лица'] += qty
+                
+                if type_counts and (type_counts['Физические лица'] > 0 or type_counts['Юридические лица'] > 0):
+                    elements.append(Spacer(1, 20))
+                    drawing2 = Drawing(400, 250)
+                    pie = Pie()
+                    pie.x = 150
+                    pie.y = 70
+                    pie.width = 150
+                    pie.height = 150
+                    pie.data = list(type_counts.values())
+                    pie.labels = list(type_counts.keys())
+                    pie.sideLabels = True
+                    pie.slices.strokeWidth = 0.5
+                    
+                    colors_list = [colors.HexColor('#1a237e'), colors.HexColor('#4caf50')]
+                    for i, color in enumerate(colors_list):
+                        if i < len(pie.slices):
+                            pie.slices[i].fillColor = color
+                            pie.slices[i].fontName = font_name
+                    
+                    drawing2.add(pie)
+                    elements.append(Paragraph("Распределение акций по типам акционеров", normal_style))
+                    elements.append(Spacer(1, 5))
+                    elements.append(drawing2)
+                
+                # Итоги
+                total_shares = sum(quantities)
+                elements.append(Spacer(1, 10))
+                elements.append(Paragraph(f"<b>Всего акционеров: {len(results)}</b>", normal_style))
+                elements.append(Paragraph(f"<b>Общее количество акций: {int(total_shares):,}</b>", normal_style))
+                
                 doc.build(elements)
                 QMessageBox.information(self, "Успех", f"Отчет сохранен в файл:\n{file_path}")
         else:

@@ -1,4 +1,4 @@
-# gui/shareholder_tab.py
+# gui/shareholder_tab.py - ПОЛНОСТЬЮ ИСПРАВЛЕННАЯ ВЕРСИЯ
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
                              QTableWidget, QTableWidgetItem, QGroupBox, 
                              QLineEdit, QLabel, QFormLayout, QComboBox,
@@ -36,6 +36,7 @@ class ShareholderTab(QWidget):
         info_layout.addRow("Статус:", self.status_label)
         
         self.edit_btn = QPushButton("Редактировать личные данные")
+        self.edit_btn.setStyleSheet("background-color: #2196F3; color: white;")
         self.edit_btn.clicked.connect(self.edit_shareholder)
         info_layout.addRow("", self.edit_btn)
         
@@ -69,12 +70,14 @@ class ShareholderTab(QWidget):
         search_layout.addWidget(self.status_combo)
         
         self.search_btn = QPushButton("Поиск")
+        self.search_btn.setStyleSheet("background-color: #2196F3; color: white;")
         self.search_btn.clicked.connect(self.search_accounts)
         search_layout.addWidget(self.search_btn)
         
         self.clear_btn = QPushButton("Очистить")
         self.clear_btn.clicked.connect(self.clear_accounts_search)
         search_layout.addWidget(self.clear_btn)
+        search_layout.addStretch()
         
         search_group.setLayout(search_layout)
         accounts_layout.addWidget(search_group)
@@ -130,8 +133,10 @@ class ShareholderTab(QWidget):
         select_layout = QHBoxLayout()
         select_layout.addWidget(QLabel("Выберите счет:"))
         self.account_combo = QComboBox()
+        self.account_combo.setMinimumWidth(300)
         self.account_combo.currentIndexChanged.connect(self.load_operations)
         select_layout.addWidget(self.account_combo)
+        select_layout.addStretch()
         operations_layout.addLayout(select_layout)
         
         # Таблица операций
@@ -182,6 +187,8 @@ class ShareholderTab(QWidget):
             self.accounts_table.setItem(i, 2, QTableWidgetItem(str(acc.get('close_date', '-'))))
             self.accounts_table.setItem(i, 3, QTableWidgetItem(str(acc['current_balance'])))
             self.accounts_table.setItem(i, 4, QTableWidgetItem(acc['status']))
+            
+            # Сохраняем ID для внутреннего использования
             self.accounts_table.item(i, 0).setData(Qt.ItemDataRole.UserRole, acc['account_id'])
         
         # Обновляем комбобокс для операций
@@ -215,7 +222,7 @@ class ShareholderTab(QWidget):
         search_type = self.search_type.currentText()
         
         if search_type == "По номеру счета":
-            account_number = self.account_number_input.text()
+            account_number = self.account_number_input.text().strip()
             if account_number:
                 account = self.parent.account_model.get_by_number(account_number)
                 if account and account['shareholder_id'] == self.shareholder_id:
@@ -288,7 +295,7 @@ class ShareholderTab(QWidget):
             if shares:
                 account = self.parent.account_model.get_by_id(account_id)
                 pdf_exporter = PDFExporter(self)
-                pdf_exporter.export_shares_on_account_report(shares, account.get('account_number') if account else None)
+                pdf_exporter.export_account_shares_report(account, shares)
             else:
                 QMessageBox.information(self, "Результат", "Нет акций на выбранном счете")
         else:

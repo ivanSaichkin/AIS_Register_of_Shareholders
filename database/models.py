@@ -328,3 +328,50 @@ class UserModel:
             (username,)
         )
         return result[0] if result else None
+    
+
+# database/models.py (дополнение к существующему файлу)
+
+class UserModel:
+    """Модель для работы с пользователями"""
+    
+    def __init__(self, db: DatabaseManager):
+        self.db = db
+    
+    def authenticate(self, username: str) -> Optional[Dict]:
+        result = self.db.execute_query(
+            "SELECT * FROM users WHERE username = %s",
+            (username,)
+        )
+        return result[0] if result else None
+    
+    def create_user(self, username: str, role: str, shareholder_id: int = None, company_id: int = None) -> int:
+        """Создание нового пользователя"""
+        # Проверяем, существует ли уже такой пользователь
+        existing = self.db.execute_query(
+            "SELECT user_id FROM users WHERE username = %s",
+            (username,)
+        )
+        if existing:
+            return existing[0]['user_id']
+        
+        return self.db.execute_insert("""
+            INSERT INTO users (username, role, shareholder_id, company_id)
+            VALUES (%s, %s, %s, %s)
+            RETURNING user_id
+        """, (username, role, shareholder_id, company_id))
+    
+    def create_auto_user_for_company(self, company_name: str, company_id: int) -> int:
+        """Автоматическое создание пользователя для сотрудника АО"""
+        # Генерируем username из названия компании
+        username = f"emp_{company_name.lower().replace(' ', '_').replace('"', '').replace(',', '')[:30]}"
+        return self.create_user(username, 'employee', None, company_id)
+    
+    def create_auto_user_for_shareholder(self, shareholder_name: str, shareholder_id: int) -> int:
+        """Автоматическое создание пользователя для акционера"""
+        # Генерируем username из ФИО/наименования
+        username = shareholder_name.lower().replace(' ', '_').replace('"', '').replace(',', '')[:30]
+        # Добавляем суффикс если имя слишком короткое
+        if len(username) < 3:
+            username = f"user_{shareholder_id}"
+        return self.create_user(username, 'shareholder', shareholder_id, None)
